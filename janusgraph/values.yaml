@@ -1,0 +1,118 @@
+# Copyright 2019 Enharmonic, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+###########
+# Default values for JanusGraph Helm Chart
+###########
+
+##
+# Graph Data System properties
+##
+replicaCount: 1
+
+image:
+  # The repository from which to pull the image.
+  # Default is DockerHub, which pulls the official JanusGraph image from Docker Hub
+  # Alternatively, we can specify a private repository
+  # A project-based GCP repository could be specified as gcr.io/${PROJECT_ID}
+  repository: DockerHub
+  name: janusgraph/janusgraph
+  # The image version tag will always be the value specified in Chart.yaml - {{ .Chart.appVersion }}
+  pullPolicy: Always
+
+imagePullSecrets: []
+
+service:
+  # The default gremlin websocket port is 8182.
+  port: 8182
+
+
+# Parameters describing an existing Scylla deployment
+scylla:
+  # One or more hostnames/IPs in the Scylla cluster.
+  hostname: '' # TODO: Use must update this value
+  # The keyspace that stores the graph data for this deployment.
+  # This should be a clean keyspace that will only be used for JanusGraph data.
+  keyspace: janusgraph
+
+
+# Uses the 'search' as the name of the configured indexing backend.
+search:
+  enabled: true
+  # A string representing the hostnames of the ES nodes.
+  # We assume that a cluster will have at least 3 nodes (numbered 0-2)
+  # With more nodes, the ES client should still intelligently sniff the additional nodes,
+  # allowing JanusGraph to round-robin requests across all discovered nodes.
+  # hostname: "elasticsearch-master-headless"
+  # We can define a custom Storage Class for our Elasticsearch cluster
+  storageClass:
+    name: elasticsearch-ssd
+    # Depending on the Kubernetes cluster location, you will need a different provisioner.
+    # See https://kubernetes.io/docs/concepts/storage/storage-classes/#provisioner
+    # Default is set to the Google Compute Engine persistent disk provisioner
+    provisioner: kubernetes.io/gce-pd
+    type: pd-ssd
+
+
+##
+# Elasticsearch dependency values.
+##
+elasticsearch:
+  # Kubernetes replica count for the elasticsearch statefulset (i.e. how many pods)
+  replicas: 3
+  # The value for discovery.zen.minimum_master_nodes.
+  minimumMasterNodes: 2
+  image: docker.elastic.co/elasticsearch/elasticsearch
+  imageTag: 6.6.0
+  imagePullPolicy: IfNotPresent
+  volumeClaimTemplate:
+    accessModes: [ "ReadWriteOnce" ]
+    # Switch to Custom Storage Class as needed.
+    storageClassName: elasticsearch-ssd
+    resources:
+      requests:
+        storage: 30Gi
+
+
+##
+# Kubernetes properties
+##
+podSecurityContext: {}
+  # Add additional pod security context as desired.
+  # fsGroup: 2000
+
+# https://kubernetes.io/docs/concepts/policy/pod-security-policy/
+securityContext: {}
+  # Add additional pod security context as desired.
+  # capabilities:
+  #   drop:
+  #     - ALL
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+resources: {}
+  # No default resources are specified.
+  # To specify resources, uncomment the following lines,
+  # adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# Affinity for pod assignment
+# https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+affinity: {}

@@ -1,0 +1,90 @@
+# Copyright 2019 Enharmonic, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: janusgraph-deployment
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: janusgraph
+    # The "app.kubernetes.io/managed-by" label is used to track which tool
+    # deployed a given chart. It is useful for admins who want to see what
+    # releases a particular tool is responsible for.
+    app.kubernetes.io/managed-by: {{.Release.Service | quote }}
+    # The "app.kubernetes.io/instance" convention makes it easy to tie a release
+    # to all of the Kubernetes resources that were created as part of that
+    # release.
+    app.kubernetes.io/instance: {{.Release.Name | quote }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    # This makes it easy to audit chart usage.
+    helm.sh/chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: janusgraph
+  template:
+    metadata:
+      labels:
+        app: janusgraph
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.podSecurityContext | indent 8 }}
+      {{- end }}
+      initContainers:
+        # Ensure ES is running before launching JanusGraph Server
+        - name: check-elasticsearch
+          image: busybox
+          command: ['sh', '-c', 'until [ "$(wget -q -O - elasticsearch-master-headless:9200/_cat/nodes | wc -l)" = "{{ .Values.elasticsearch.replicas }}" ];
+                    do echo "Waiting for Elasticsearch cluster to come up"; sleep 10; done;
+                    echo "Elasticsearch cluster is ready, launching JanusGraph Server"']
+      containers:
+        - name: janusgraph
+          {{- if eq .Values.image.repository "DockerHub" }}
+          image: {{ .Values.image.name }}:{{ .Chart.AppVersion }}
+          {{- else }}
+          image: {{ .Values.image.repository }}/{{ .Values.image.name }}:{{ .Chart.AppVersion }}
+          {{- end }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+{{ toYaml . | indent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+{{ toYaml . | indent 12 }}
+          {{- end }}
+          env:
+            - name: JANUS_PROPS_TEMPLATE
+              value: cql-es
+            - name: janusgraph.storage.hostname
+              value: {{ .Values.scylla.hostname }}
+            - name: janusgraph.storage.cql.keyspace
+              value: {{ .Values.scylla.keyspace }}
+            # We assume at least 3 nodes
+            - name: janusgraph.index.search.hostname
+              value: elasticsearch-master-0.elasticsearch-master-headless.{{ .Release.Namespace }}.svc.cluster.local,elasticsearch-master-1.elasticsearch-master-headless.{{ .Release.Namespace }}.svc.cluster.local,elasticsearch-master-2.elasticsearch-master-headless.{{ .Release.Namespace }}.svc.cluster.local
+          ports:
+            - containerPort: 8182
+              name: gremlin-ws
+          {{- with .Values.resources }}
+          resources:
+{{ toYaml . | indent 12 }}
+          {{- end }}
+
+      {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}

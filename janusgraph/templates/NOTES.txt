@@ -1,0 +1,27 @@
+This Helm Chart is created and maintained by Enharmonic, Inc.
+It is released under the Apache 2.0 license.
+
+Thank you for installing {{ .Chart.Name }}.
+Your release is named {{ .Release.Name }}.
+
+It may take a few minutes for JanusGraph and its components to deploy.
+You can check on the status with:
+
+kubectl get svc --namespace {{ .Release.Namespace }} janusgraph-service-lb
+
+
+JANUSGRAPH:
+You can connect to JanusGraph Server with:
+
+export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} \
+  janusgraph-service-lb \
+  -o=jsonpath="{.status.loadBalancer.ingress[0].ip}")
+echo "JanusGraph IP: ws://${SERVICE_IP}:{{ .Values.service.port }}"
+
+
+Monitoring Elasticsearch
+You can monitor Elasticsearch with Kibana by running:
+
+kubectl port-forward --namespace {{ .Release.Namespace }} deployment/janusgraph-kibana 5601
+
+Your dashboard will then be viewable at http://127.0.0.1:5601
