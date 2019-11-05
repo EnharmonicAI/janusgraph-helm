@@ -23,7 +23,7 @@ This chart should work out of the box with the default values, __but you'll need
 
 ```
 git clone https://github.com/EnharmonicAI/janusgraph-helm.git && cd janusgraph-helm
-vim values.yaml
+vim janusgraph/values.yaml
 echo "I just updated my values.yaml file with my Scylla cluster hostname(s)!"
 ```
 
